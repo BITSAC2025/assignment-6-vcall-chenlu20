@@ -69,29 +69,24 @@ int main(int argc, char** argv)
     SVF::SVFIRBuilder builder;
     auto pag = builder.build();
     auto consg = new SVF::ConstraintGraph(pag);
-    // consg->dump();
     
-    Andersen andersen(consg, pag);  // 传入 pag
+    Andersen andersen(consg, pag);
     auto cg = pag->getCallGraph();
     
-    // 完成以下两个方法
     andersen.runPointerAnalysis();
     andersen.updateCallGraph(cg);
     
-    // cg->dump();
     SVF::LLVMModuleSet::releaseLLVMModuleSet();
     return 0;
 }
 
 void Andersen::runPointerAnalysis()
 {
-    // 工作列表：存储需要处理的节点
     WorkList<SVF::NodeID> worklist;
     
-    // Step 1: 初始化 - 处理所有的 Address 约束 (p = &a)
+    // Step 1: 初始化 - 处理所有的 Address 约束
     for (auto iter = consg->begin(); iter != consg->end(); ++iter) {
         SVF::ConstraintNode* node = iter->second;
-        
         const SVF::ConstraintEdge::ConstraintEdgeSetTy& addrInEdges = node->getAddrInEdges();
         
         for (auto edge : addrInEdges) {
@@ -165,6 +160,7 @@ void Andersen::runPointerAnalysis()
             
             SVF::NodeID dstId = gepEdge->getDstID();
             bool changed = false;
+            // GEP边通常offset为0，或者可以尝试从边获取
             SVF::APOffset offset = 0;
             
             for (SVF::NodeID o : nodePts) {
@@ -183,31 +179,24 @@ void Andersen::runPointerAnalysis()
 
 void Andersen::updateCallGraph(SVF::CallGraph* cg)
 {
-    // 使用 PAG 来实现，因为 ConstraintGraph 没有 isFunction/getFunction
-    
-    // 获取所有间接调用点
     const auto& indirectCallsites = consg->getIndirectCallsites();
     
-    // 遍历每个间接调用点
     for (auto& pair : indirectCallsites) {
         const SVF::CallICFGNode* callNode = pair.first;
         SVF::NodeID funPtrId = pair.second;
         
-        // 获取调用者
-        const SVF::FunObjVar* callerFun = callNode->getCaller();
+        // getCaller() 返回 FunObjVar*
+        const SVF::FunObjVar* caller = callNode->getCaller();
         
-        // 获取函数指针的 points-to 集合
         const std::set<unsigned>& ptsSet = pts[funPtrId];
         
-        // 遍历 points-to 集合
         for (SVF::NodeID objId : ptsSet) {
-            // 从 PAG 获取节点
             SVF::PAGNode* pagNode = pag->getGNode(objId);
             
-            // 检查是否是函数对象变量 (FunObjVar)
-            if (SVF::FunObjVar* funObjVar = SVF::SVFUtil::dyn_cast<SVF::FunObjVar>(pagNode)) {
-                // 添加间接调用边
-                cg->addIndirectCallGraphEdge(callNode, callerFun, funObjVar);
+            // 检查是否是函数对象
+            if (SVF::FunObjVar* callee = SVF::SVFUtil::dyn_cast<SVF::FunObjVar>(pagNode)) {
+                // addIndirectCallGraphEdge 需要两个 FunObjVar*
+                cg->addIndirectCallGraphEdge(callNode, caller, callee);
             }
         }
     }
