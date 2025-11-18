@@ -383,6 +383,30 @@ void Andersen::runPointerAnalysis()
     }
 }
 
+// void Andersen::updateCallGraph(SVF::CallGraph* cg)
+// {
+//     const auto& indirectCallsites = consg->getIndirectCallsites();
+    
+//     for (auto& pair : indirectCallsites) {
+//         const SVF::CallICFGNode* callNode = pair.first;
+//         SVF::NodeID funPtrId = pair.second;
+        
+//         // getCaller() 返回 FunObjVar*
+//         const SVF::FunObjVar* caller = callNode->getCaller();
+        
+//         const std::set<unsigned>& ptsSet = pts[funPtrId];
+        
+//         for (SVF::NodeID objId : ptsSet) {
+//             SVF::PAGNode* pagNode = pag->getGNode(objId);
+            
+//             // 检查是否是函数对象
+//             if (SVF::FunObjVar* callee = SVF::SVFUtil::dyn_cast<SVF::FunObjVar>(pagNode)) {
+//                 // addIndirectCallGraphEdge 需要两个 FunObjVar*
+//                 cg->addIndirectCallGraphEdge(callNode, caller, callee);
+//             }
+//         }
+//     }
+// }
 void Andersen::updateCallGraph(SVF::CallGraph* cg)
 {
     const auto& indirectCallsites = consg->getIndirectCallsites();
@@ -391,17 +415,19 @@ void Andersen::updateCallGraph(SVF::CallGraph* cg)
         const SVF::CallICFGNode* callNode = pair.first;
         SVF::NodeID funPtrId = pair.second;
         
-        // getCaller() 返回 FunObjVar*
-        const SVF::FunObjVar* caller = callNode->getCaller();
+        // ✅ 改正：getCaller() 返回 SVFFunction*
+        const SVF::SVFFunction* caller = callNode->getCaller();
         
         const std::set<unsigned>& ptsSet = pts[funPtrId];
         
         for (SVF::NodeID objId : ptsSet) {
             SVF::PAGNode* pagNode = pag->getGNode(objId);
             
-            // 检查是否是函数对象
-            if (SVF::FunObjVar* callee = SVF::SVFUtil::dyn_cast<SVF::FunObjVar>(pagNode)) {
-                // addIndirectCallGraphEdge 需要两个 FunObjVar*
+            // 先转换为 FunObjVar 获取函数对象
+            if (SVF::FunObjVar* funObjVar = SVF::SVFUtil::dyn_cast<SVF::FunObjVar>(pagNode)) {
+                // ✅ 从 FunObjVar 获取 SVFFunction*
+                const SVF::SVFFunction* callee = funObjVar->getFunction();
+                // ✅ 正确的参数类型
                 cg->addIndirectCallGraphEdge(callNode, caller, callee);
             }
         }
