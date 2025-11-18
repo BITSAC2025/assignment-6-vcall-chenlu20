@@ -415,19 +415,17 @@ void Andersen::updateCallGraph(SVF::CallGraph* cg)
         const SVF::CallICFGNode* callNode = pair.first;
         SVF::NodeID funPtrId = pair.second;
         
-        // ✅ 改正：getCaller() 返回 SVFFunction*
-        const SVF::SVFFunction* caller = callNode->getCaller();
+        // ✅ 正确：getCaller() 直接返回 FunObjVar*
+        const SVF::FunObjVar* caller = callNode->getCaller();
         
         const std::set<unsigned>& ptsSet = pts[funPtrId];
         
         for (SVF::NodeID objId : ptsSet) {
             SVF::PAGNode* pagNode = pag->getGNode(objId);
             
-            // 先转换为 FunObjVar 获取函数对象
-            if (SVF::FunObjVar* funObjVar = SVF::SVFUtil::dyn_cast<SVF::FunObjVar>(pagNode)) {
-                // ✅ 从 FunObjVar 获取 SVFFunction*
-                const SVF::SVFFunction* callee = funObjVar->getFunction();
-                // ✅ 正确的参数类型
+            // ✅ 直接检查是否为FunObjVar类型，不需要调用getFunction()
+            if (SVF::FunObjVar* callee = SVF::SVFUtil::dyn_cast<SVF::FunObjVar>(pagNode)) {
+                // ✅ 两个参数都是FunObjVar*类型
                 cg->addIndirectCallGraphEdge(callNode, caller, callee);
             }
         }
